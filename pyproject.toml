@@ -1,12 +1,13 @@
 [project]
 name = "am-in-ai-agent"
 version = "0.1.0"
-description = "Modular AI agent stack using OpenAI Agents SDK, Browser Use, and LiveKit Agents"
+description = "Modular AI agent stack using OpenAI Agents SDK, Browser Use, LiveKit Agents, and MCP"
 requires-python = ">=3.12"
 dependencies = [
   "openai-agents>=0.1.0",
   "browser-use",
   "livekit-agents[openai]",
+  "mcp[cli]",
   "python-dotenv>=1.0.0",
 ]
 
