@@ -15,7 +15,7 @@ jobs:
       - name: Install dependencies
         run: uv sync
       - name: Compile Python files
-        run: uv run python -m py_compile agents_text.py browser_agent.py livekit_agent.py mcp_server.py healthcheck.py am_in_core/*.py
+        run: uv run python -m py_compile agents_text.py browser_agent.py livekit_agent.py mcp_server.py run_mcp_compressed.py healthcheck.py am_in_core/*.py
       - name: Import smoke test
         run: |
           uv run python - <<'PY'
@@ -24,6 +24,7 @@ jobs:
           import livekit.agents
           import livekit.plugins.openai
           import mcp
+          import mcp_compressor
           import am_in_core
           import agents_text
           print("All core imports succeeded")
@@ -49,6 +50,15 @@ jobs:
           assert unknown_result["allowed"] is False
           assert unknown_result["mode"] == "analyze_only"
           print("MCP guarded runtime integration passed")
+          PY
+      - name: Validate MCP compressor launcher
+        run: |
+          uv run python - <<'PY'
+          import run_mcp_compressed
+          assert run_mcp_compressed._compression_level() == "medium"
+          assert run_mcp_compressed._require_executable("mcp-compressor")
+          assert run_mcp_compressed._require_executable("mcp")
+          print("MCP compressor installation and launcher validation passed")
           PY
       - name: Execute agent core smoke test
         run: |
