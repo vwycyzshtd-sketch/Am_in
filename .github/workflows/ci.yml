@@ -15,7 +15,7 @@ jobs:
       - name: Install dependencies
         run: uv sync
       - name: Compile Python files
-        run: uv run python -m py_compile agents_text.py browser_agent.py livekit_agent.py healthcheck.py
+        run: uv run python -m py_compile agents_text.py browser_agent.py livekit_agent.py mcp_server.py healthcheck.py
       - name: Import smoke test
         run: |
           uv run python - <<'PY'
@@ -23,5 +23,17 @@ jobs:
           import browser_use
           import livekit.agents
           import livekit.plugins.openai
+          import mcp
           print("All core imports succeeded")
+          PY
+      - name: Execute MCP smoke test
+        run: |
+          uv run python - <<'PY'
+          import mcp_server
+          assert mcp_server.echo("ping") == "ping"
+          status = mcp_server.stack_status()
+          assert isinstance(status, dict)
+          print("MCP echo:", mcp_server.echo("ping"))
+          print("MCP stack status:", status)
+          print("MCP smoke test passed")
           PY
