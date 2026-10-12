@@ -15,19 +15,22 @@ jobs:
       - name: Install dependencies
         run: uv sync
       - name: Compile Python files
-        run: uv run python -m py_compile agents_text.py browser_agent.py livekit_agent.py mcp_server.py run_mcp_compressed.py healthcheck.py am_in_core/*.py
+        run: uv run python -m py_compile agents_text.py browser_agent.py livekit_agent.py mcp_server.py run_mcp_compressed.py web_control.py healthcheck.py am_in_core/*.py
       - name: Import smoke test
         run: |
           uv run python - <<'PY'
           import agents
           import browser_use
+          import fastapi
           import livekit.agents
           import livekit.plugins.openai
           import mcp
           import mcp_compressor
+          import uvicorn
           import am_in_core
           import agents_text
-          print("All core imports succeeded")
+          import web_control
+          print("All core and web imports succeeded")
           PY
       - name: Execute MCP integration smoke test
         run: |
@@ -59,6 +62,16 @@ jobs:
           assert run_mcp_compressed._require_executable("mcp-compressor")
           assert run_mcp_compressed._require_executable("mcp")
           print("MCP compressor installation and launcher validation passed")
+          PY
+      - name: Validate web control plane
+        run: |
+          uv run python - <<'PY'
+          import web_control
+          assert web_control.app.title == "Am_in Control"
+          status = web_control.manager.status()
+          assert status["running"] is False
+          assert status["compression_level"] == "medium"
+          print("Web control plane validation passed")
           PY
       - name: Execute agent core smoke test
         run: |
@@ -105,3 +118,5 @@ jobs:
           assert len(agents_text.agent.tools) >= 1
           print("Agent core and OpenAI Agent integration passed")
           PY
+      - name: Build Docker image
+        run: docker build -t am-in-control:ci .
