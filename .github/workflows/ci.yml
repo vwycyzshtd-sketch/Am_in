@@ -25,16 +25,30 @@ jobs:
           import livekit.plugins.openai
           import mcp
           import am_in_core
+          import agents_text
           print("All core imports succeeded")
           PY
-      - name: Execute MCP smoke test
+      - name: Execute MCP integration smoke test
         run: |
           uv run python - <<'PY'
           import mcp_server
           assert mcp_server.echo("ping") == "ping"
           status = mcp_server.stack_status()
           assert isinstance(status, dict)
-          print("MCP smoke test passed")
+          assert "agent_core" in status
+
+          read_result = mcp_server.evaluate_action("read_context", 0.95, "read")
+          assert read_result["allowed"] is True
+
+          execute_result = mcp_server.evaluate_action(
+              "execute_external_action", 0.99, "execute_with_approval"
+          )
+          assert execute_result["mode"] == "require_approval"
+
+          unknown_result = mcp_server.evaluate_action("unknown_action", 0.99, "read")
+          assert unknown_result["allowed"] is False
+          assert unknown_result["mode"] == "analyze_only"
+          print("MCP guarded runtime integration passed")
           PY
       - name: Execute agent core smoke test
         run: |
@@ -50,6 +64,8 @@ jobs:
               PermissionLevel,
               PermissionPolicy,
           )
+          from am_in_core.runtime import runtime
+          import agents_text
 
           with TemporaryDirectory() as tmp:
               memory = MemoryStore(str(Path(tmp) / "memory.db"))
@@ -75,5 +91,7 @@ jobs:
               assert event.action == "read_slack"
               assert Path(tmp, "audit.jsonl").exists()
 
-          print("Agent core smoke test passed")
+          assert runtime.status()["permission_policy"] == "deny_unknown"
+          assert len(agents_text.agent.tools) >= 1
+          print("Agent core and OpenAI Agent integration passed")
           PY
