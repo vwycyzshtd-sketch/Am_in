@@ -16,6 +16,7 @@ MODULES = (
     ("browser_use", "Browser Use"),
     ("livekit.agents", "LiveKit Agents"),
     ("livekit.plugins.openai", "LiveKit OpenAI plugin"),
+    ("mcp", "Model Context Protocol SDK"),
 )
 
 
