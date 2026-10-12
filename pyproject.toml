@@ -1,0 +1,14 @@
+[project]
+name = "am-in-ai-agent"
+version = "0.1.0"
+description = "Modular AI agent stack using OpenAI Agents SDK, Browser Use, and LiveKit Agents"
+requires-python = ">=3.12"
+dependencies = [
+  "openai-agents>=0.1.0",
+  "browser-use",
+  "livekit-agents[openai]",
+  "python-dotenv>=1.0.0",
+]
+
+[tool.uv]
+package = false
