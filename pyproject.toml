@@ -8,6 +8,7 @@ dependencies = [
   "browser-use",
   "livekit-agents[openai]",
   "mcp[cli]",
+  "mcp-compressor==0.33.0",
   "pydantic-settings",
   "python-dotenv>=1.0.0",
 ]
