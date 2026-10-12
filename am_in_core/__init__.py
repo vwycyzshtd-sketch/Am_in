@@ -1,14 +1,16 @@
-from .audit import AuditLogger
-from .decision import DecisionEngine, DecisionResult
+from .audit import AuditEvent, AuditLogger
+from .decision import Decision, DecisionEngine, DecisionMode
 from .memory import MemoryStore
-from .permissions import ActionRisk, PermissionPolicy, PermissionResult
+from .permissions import ActionPolicy, PermissionLevel, PermissionPolicy
 
 __all__ = [
-    "ActionRisk",
+    "ActionPolicy",
+    "AuditEvent",
     "AuditLogger",
+    "Decision",
     "DecisionEngine",
-    "DecisionResult",
+    "DecisionMode",
     "MemoryStore",
+    "PermissionLevel",
     "PermissionPolicy",
-    "PermissionResult",
 ]
