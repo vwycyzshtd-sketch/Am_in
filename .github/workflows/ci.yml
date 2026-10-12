@@ -15,25 +15,108 @@ jobs:
       - name: Install dependencies
         run: uv sync
       - name: Compile Python files
-        run: uv run python -m py_compile agents_text.py browser_agent.py livekit_agent.py mcp_server.py healthcheck.py
+        run: uv run python -m py_compile agents_text.py browser_agent.py livekit_agent.py mcp_server.py run_mcp_compressed.py web_control.py healthcheck.py am_in_core/*.py
       - name: Import smoke test
         run: |
           uv run python - <<'PY'
           import agents
           import browser_use
+          import fastapi
           import livekit.agents
           import livekit.plugins.openai
           import mcp
-          print("All core imports succeeded")
+          import mcp_compressor
+          import uvicorn
+          import am_in_core
+          import agents_text
+          import web_control
+          print("All core and web imports succeeded")
           PY
-      - name: Execute MCP smoke test
+      - name: Execute MCP integration smoke test
         run: |
           uv run python - <<'PY'
           import mcp_server
           assert mcp_server.echo("ping") == "ping"
           status = mcp_server.stack_status()
           assert isinstance(status, dict)
-          print("MCP echo:", mcp_server.echo("ping"))
-          print("MCP stack status:", status)
-          print("MCP smoke test passed")
+          assert "agent_core" in status
+
+          read_result = mcp_server.evaluate_action("read_context", 0.95, "read")
+          assert read_result["allowed"] is True
+
+          execute_result = mcp_server.evaluate_action(
+              "execute_external_action", 0.99, "execute_with_approval"
+          )
+          assert execute_result["mode"] == "require_approval"
+
+          unknown_result = mcp_server.evaluate_action("unknown_action", 0.99, "read")
+          assert unknown_result["allowed"] is False
+          assert unknown_result["mode"] == "analyze_only"
+          print("MCP guarded runtime integration passed")
           PY
+      - name: Validate MCP compressor launcher
+        run: |
+          uv run python - <<'PY'
+          import run_mcp_compressed
+          assert run_mcp_compressed._compression_level() == "medium"
+          assert run_mcp_compressed._require_executable("mcp-compressor")
+          assert run_mcp_compressed._require_executable("mcp")
+          print("MCP compressor installation and launcher validation passed")
+          PY
+      - name: Validate web control plane
+        run: |
+          uv run python - <<'PY'
+          import web_control
+          assert web_control.app.title == "Am_in Control"
+          status = web_control.manager.status()
+          assert status["running"] is False
+          assert status["compression_level"] == "medium"
+          print("Web control plane validation passed")
+          PY
+      - name: Execute agent core smoke test
+        run: |
+          uv run python - <<'PY'
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from am_in_core import (
+              ActionPolicy,
+              AuditLogger,
+              DecisionEngine,
+              DecisionMode,
+              MemoryStore,
+              PermissionLevel,
+              PermissionPolicy,
+          )
+          from am_in_core.runtime import runtime
+          import agents_text
+
+          with TemporaryDirectory() as tmp:
+              memory = MemoryStore(str(Path(tmp) / "memory.db"))
+              memory.set("user", "language", "fa")
+              assert memory.get("user", "language") == "fa"
+
+              policy = PermissionPolicy([
+                  ActionPolicy("read_slack", PermissionLevel.READ),
+                  ActionPolicy("send_email", PermissionLevel.EXECUTE_WITH_APPROVAL),
+              ])
+              assert policy.allows("read_slack", PermissionLevel.READ)
+              assert policy.requires_approval("send_email")
+              assert not policy.allows("unknown_action", PermissionLevel.READ)
+
+              engine = DecisionEngine()
+              assert engine.decide(0.95).mode == DecisionMode.AUTO_EXECUTE
+              assert engine.decide(0.75).mode == DecisionMode.REQUIRE_APPROVAL
+              assert engine.decide(0.40).mode == DecisionMode.ANALYZE_ONLY
+              assert engine.decide(0.99, high_risk=True).mode == DecisionMode.REQUIRE_APPROVAL
+
+              audit = AuditLogger(str(Path(tmp) / "audit.jsonl"))
+              event = audit.log("agent", "read_slack", "allowed", {"test": True})
+              assert event.action == "read_slack"
+              assert Path(tmp, "audit.jsonl").exists()
+
+          assert runtime.status()["permission_policy"] == "deny_unknown"
+          assert len(agents_text.agent.tools) >= 1
+          print("Agent core and OpenAI Agent integration passed")
+          PY
+      - name: Build Docker image
+        run: docker build -t am-in-control:ci .

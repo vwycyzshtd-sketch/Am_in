@@ -1,0 +1,19 @@
+services:
+  am-in-control:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      PORT: "8080"
+      RUNTIME_DIR: /app/runtime
+      MCP_COMPRESSION_LEVEL: ${MCP_COMPRESSION_LEVEL:-medium}
+    volumes:
+      - am_in_runtime:/app/runtime
+
+volumes:
+  am_in_runtime:
