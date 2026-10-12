@@ -15,7 +15,7 @@ jobs:
       - name: Install dependencies
         run: uv sync
       - name: Compile Python files
-        run: uv run python -m py_compile agents_text.py browser_agent.py livekit_agent.py mcp_server.py healthcheck.py
+        run: uv run python -m py_compile agents_text.py browser_agent.py livekit_agent.py mcp_server.py healthcheck.py am_in_core/*.py
       - name: Import smoke test
         run: |
           uv run python - <<'PY'
@@ -24,6 +24,7 @@ jobs:
           import livekit.agents
           import livekit.plugins.openai
           import mcp
+          import am_in_core
           print("All core imports succeeded")
           PY
       - name: Execute MCP smoke test
@@ -33,7 +34,46 @@ jobs:
           assert mcp_server.echo("ping") == "ping"
           status = mcp_server.stack_status()
           assert isinstance(status, dict)
-          print("MCP echo:", mcp_server.echo("ping"))
-          print("MCP stack status:", status)
           print("MCP smoke test passed")
+          PY
+      - name: Execute agent core smoke test
+        run: |
+          uv run python - <<'PY'
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from am_in_core import (
+              ActionPolicy,
+              AuditLogger,
+              DecisionEngine,
+              DecisionMode,
+              MemoryStore,
+              PermissionLevel,
+              PermissionPolicy,
+          )
+
+          with TemporaryDirectory() as tmp:
+              memory = MemoryStore(str(Path(tmp) / "memory.db"))
+              memory.set("user", "language", "fa")
+              assert memory.get("user", "language") == "fa"
+
+              policy = PermissionPolicy([
+                  ActionPolicy("read_slack", PermissionLevel.READ),
+                  ActionPolicy("send_email", PermissionLevel.EXECUTE_WITH_APPROVAL),
+              ])
+              assert policy.allows("read_slack", PermissionLevel.READ)
+              assert policy.requires_approval("send_email")
+              assert not policy.allows("unknown_action", PermissionLevel.READ)
+
+              engine = DecisionEngine()
+              assert engine.decide(0.95).mode == DecisionMode.AUTO_EXECUTE
+              assert engine.decide(0.75).mode == DecisionMode.REQUIRE_APPROVAL
+              assert engine.decide(0.40).mode == DecisionMode.ANALYZE_ONLY
+              assert engine.decide(0.99, high_risk=True).mode == DecisionMode.REQUIRE_APPROVAL
+
+              audit = AuditLogger(str(Path(tmp) / "audit.jsonl"))
+              event = audit.log("agent", "read_slack", "allowed", {"test": True})
+              assert event.action == "read_slack"
+              assert Path(tmp, "audit.jsonl").exists()
+
+          print("Agent core smoke test passed")
           PY
